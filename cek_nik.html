@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cek KTP</title>
+<style>
+:root{--blue:#2563eb;--ink:#172033;--muted:#64748b;--bg:#f1f5f9}*{box-sizing:border-box}body{margin:0;background:var(--bg);font:14px Arial,sans-serif;color:var(--ink)}header{background:linear-gradient(120deg,#1d4ed8,#0f766e);color:#fff;padding:13px 16px}header>div,main{max-width:980px;margin:auto}header>div{display:flex;align-items:center;gap:11px}header h1{margin:0 0 2px;font-size:22px}header p{margin:0;opacity:.9;font-size:12px}.logo{width:42px;height:42px;flex:none}main{padding:10px 12px}.card{background:#fff;border-radius:10px;padding:13px;margin-bottom:10px;box-shadow:0 3px 12px #0f172a12}h2{font-size:17px;margin:0 0 4px}label{display:block;font-weight:700;margin-bottom:5px}input{width:100%;padding:9px 10px;border:1px solid #cbd5e1;border-radius:7px;font:inherit}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}button{border:0;border-radius:7px;padding:9px 13px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer}button.secondary{background:#64748b}button:disabled{opacity:.6;cursor:not-allowed}.muted{color:var(--muted);font-size:12px;margin:0 0 9px}.info{font-size:11px;color:#1e40af;background:#dbeafe;padding:8px;border-radius:7px;margin-top:9px}.info code{font-size:10px}.results{display:none;margin-top:12px}.results.show{display:block}.results .result{display:block;margin-bottom:8px;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden}.results .result:last-of-type{margin-bottom:0}.sumline{display:none;font-size:12px;color:#14532d;background:#dcfce7;padding:7px 9px;border-radius:7px;font-weight:700;margin-top:8px}.result .rhead{padding:9px 11px;font-weight:700;color:#fff;background:#64748b}.result .rhead.ok{background:#15803d}.result .rhead.err{background:#b91c1c}.result dl{display:grid;grid-template-columns:150px 1fr;margin:0;padding:10px 11px;gap:6px 10px;font-size:13px}.result dt{color:var(--muted)}.result dd{margin:0;font-weight:700;word-break:break-word}form label:not(:first-child){margin-top:9px}.caprow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}img.cap{height:46px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;flex:none}img.cap.empty{background:#e2e8f0;width:160px}.caprow input{flex:1 0 100%;margin-top:8px}
+@media(max-width:650px){main{padding:8px}.card{padding:11px}.result dl{grid-template-columns:110px 1fr}}
+</style>
+</head>
+<body>
+<header><div><svg class="logo" viewBox="0 0 64 64" role="img" aria-label="Logo kartu identitas"><rect x="5" y="10" width="54" height="44" rx="7" fill="#fff" opacity=".96"/><rect x="12" y="18" width="16" height="20" rx="3" fill="#2563eb"/><circle cx="20" cy="24" r="4" fill="#fff"/><path d="M14 34c1-4 11-4 12 0" fill="none" stroke="#fff" stroke-width="2"/><path d="M34 22h17M34 29h13M34 36h17" stroke="#0f766e" stroke-width="3" stroke-linecap="round"/></svg><div><h1>Cek KTP</h1><p>RiaCaya - Realization Dreams</p></div></div></header>
+<main>
+<section class="card"><h2>Nomor NIK atau KTP</h2><p class="muted">Masukkan 16 digit NIK, isi CAPTCHA bila ingin data DTSEN, lalu tekan tombol Cek.</p>
+<form id="checkForm"><label for="checkNik">Nomor NIK</label><input id="checkNik" name="nik" inputmode="numeric" maxlength="16" pattern="[0-9]{16}" placeholder="Contoh: 3300000000000000" required><label for="capInput">Kode CAPTCHA (untuk DTSEN)</label><div class="caprow"><img id="capImg" class="cap empty" alt="Gambar CAPTCHA" width="160" height="46"><button type="button" class="secondary" id="capBtn">Muat Ulang</button><input id="capInput" name="captcha" autocomplete="off" spellcheck="false" placeholder="kosongkan bila tidak perlu DTSEN"></div><div class="actions"><button type="submit" id="checkBtn">Cek NIK</button><button type="button" class="secondary" id="clearBtn">Bersihkan</button></div></form>
+<div class="results" id="resultBox"><div class="result" id="box1"><div class="rhead" id="head1">Hasil</div><dl id="list1"></dl></div><div class="result" id="box2" style="display:none"><div class="rhead ok" id="head2">2. SIPOL KPU</div><dl id="list2"></dl></div><div class="result" id="box3" style="display:none"><div class="rhead ok" id="head3">3. DTSEN Kemensos</div><dl id="list3"></dl></div><div class="sumline" id="sumLine"></div></div>
+<div class="info"><b>Rumus</b> · <b>SIPOL KPU</b> · <b>DTKS/DTSEN</b> — informasi publik, bukan verifikasi Dukcapil.</div></section>
+</main>
+<script>
+
+var API_URL='';
+var WIL_PRO={},WIL_KAB={},WIL_KEC={},WIL_LOADED=null;
+function peta(j,k){var a=j&&j[k],o={};if(Array.isArray(a)){a.forEach(function(x){if(x&&x.id!=null)o[String(x.id)]=x.nama||x.name||''});return o}return a||j||o}
+function muatWilayah(){
+  if(WIL_LOADED)return WIL_LOADED;
+  var base=(location.protocol==='file:'?'http://127.0.0.1:8788':'');
+  WIL_LOADED=Promise.all(['pro','kab','kec'].map(function(k){return fetch(base+'/assets/'+k+'.json').then(function(r){if(!r.ok)throw Error('Gagal memuat assets/'+k+'.json');return r.json()})})).then(function(a){WIL_PRO=peta(a[0],'pro');WIL_KAB=peta(a[1],'kab');WIL_KEC=peta(a[2],'kec')});
+  return WIL_LOADED;
+}
+
+var $=function(id){return document.getElementById(id)};
+function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]})}
+function pad(n){return (n<10?'0':'')+n}
+function usia(iso){var d=new Date(iso+'T00:00:00');var n=new Date();var a=n.getFullYear()-d.getFullYear();if(n<new Date(n.getFullYear(),d.getMonth(),d.getDate()))a--;return a}
+
+async function validasiLokal(nik){
+  await muatWilayah();
+  var provId=nik.slice(0,2),kabId=nik.slice(0,4),kecId=nik.slice(0,6);
+  var kodeTanggal=parseInt(nik.slice(6,8),10),bulan=parseInt(nik.slice(8,10),10),tahun=parseInt(nik.slice(10,12),10);
+  var perempuan=kodeTanggal>=41,tanggal=perempuan?kodeTanggal-40:kodeTanggal;
+  if(!tanggal||tanggal>31||bulan<1||bulan>12)return{ok:false,alasan:'Tanggal lahir pada NIK tidak valid.'};
+  var th=tahun<=new Date().getFullYear()%100?2000+tahun:1900+tahun;
+  var iso=th+'-'+pad(bulan)+'-'+pad(tanggal);
+  var dt=new Date(iso+'T00:00:00');
+  if(dt.getFullYear()!==th||dt.getMonth()+1!==bulan||dt.getDate()!==tanggal||dt>new Date())return{ok:false,alasan:'Tanggal lahir pada NIK tidak valid.'};
+  var pn=WIL_PRO[provId],kn=WIL_KAB[kabId],cn=WIL_KEC[kecId];
+  if(!pn||!kn||!cn)return{ok:false,alasan:'Kode wilayah NIK tidak dikenal.'};
+  return{ok:true,pro:pn,kab:kn,kec:cn,birthDateISO:iso,gender:perempuan?'P':'L',age:usia(iso),serial:nik.slice(12)};
+}
+
+function boxRows(rows){return rows.map(function(r){return '<dt>'+esc(r[0])+'</dt><dd>'+esc(r[1])+'</dd>'}).join('')}
+function showBox(n,head,cls,rows){
+  var h=$('head'+n),dl=$('list'+n);
+  h.textContent=head;h.className='rhead '+cls;
+  dl.innerHTML=boxRows(rows);
+  $('box'+n).style.display='block';
+  $('resultBox').classList.add('show');
+}
+function hideBox(n){$('box'+n).style.display='none'}
+function setSumber(txt){var el=$('sumLine');if(txt){el.textContent='Sumber: '+txt;el.style.display='block'}else{el.style.display='none'}}
+function renderError(msg){
+  hideBox(2);hideBox(3);setSumber('');
+  showBox(1,'NIK Tidak Valid','err',[['Status',msg]]);
+}
+
+function per(x){return (x&&x!=='-')?' ('+x+')':''}
+
+/* tiga kotak terpisah: 1. Rumus lokal  2. SIPOL  3. DTSEN + baris Sumber yang simpel */
+function render(nik,v,sipol,dtsen){
+  var sumber=['Rumus'];
+  showBox(1,'1. Rumus Lokal','ok',[
+    ['NIK',nik],
+    ['Provinsi',v.pro],['Kabupaten/Kota',v.kab],['Kecamatan',v.kec],
+    ['Tanggal Lahir',v.birthDateISO],
+    ['Jenis Kelamin',v.gender==='L'?'Laki-laki':'Perempuan'],
+    ['Usia',v.age+' tahun'],['Kode Serial',v.serial]
+  ]);
+  if(sipol&&sipol.nama&&sipol.nama.found){
+    sumber.push('SIPOL');
+    var r2=[['Nama',sipol.nama.value||'-']];
+    if(sipol.nama.partai)r2.push(['Partai Politik',sipol.nama.partai]);
+    if(sipol.nama.jabatan)r2.push(['Jabatan',sipol.nama.jabatan]);
+    if(sipol.nama.unit)r2.push(['Unit / Wilayah',sipol.nama.unit]);
+    showBox(2,'2. SIPOL KPU','ok',r2);
+  }else{
+    showBox(2,'2. SIPOL KPU','ok',[['Status',(sipol&&!sipol.serverOk)?'server API tidak aktif — isi API_URL, atau jalankan node server.js (mode lokal)':'tidak ada data parpol untuk NIK ini']]);
+  }
+  if(dtsen){
+    if(dtsen.state==='found'){
+      sumber.push('DTSEN');
+      var r3=[];
+      if(dtsen.nama)r3.push(['Nama',dtsen.nama]);
+      r3.push(['Desil',dtsen.desil||'-']);
+      r3.push(['Keterangan DTSEN',dtsen.dtsen||'-']);
+      r3.push(['Sembako',(dtsen.sembako&&dtsen.sembako.status||'-')+per(dtsen.sembako&&dtsen.sembako.periode)]);
+      r3.push(['PKH',(dtsen.pkh&&dtsen.pkh.status||'-')+per(dtsen.pkh&&dtsen.pkh.periode)]);
+      r3.push(['PBI-JK',(dtsen.pbi&&dtsen.pbi.status||'-')+per(dtsen.pbi&&dtsen.pbi.periode)]);
+      if(dtsen.pbi&&dtsen.pbi.ket)r3.push(['Keterangan PBI',dtsen.pbi.ket]);
+      r3.push(['Status KPD',dtsen.kpd||'-']);
+      showBox(3,'3. DTSEN Kemensos','ok',r3);
+    }else{
+      showBox(3,'3. DTSEN Kemensos','ok',[['Status',dtsen.pesan||'tidak ada data untuk NIK ini']]);
+    }
+  }else{
+    hideBox(3);
+  }
+  setSumber(sumber.join(' + '));
+}
+function renderPending(nik,v){
+  hideBox(2);hideBox(3);setSumber('');
+  showBox(1,'Memeriksa...','',[['NIK',nik],['Provinsi',v.pro],['Kabupaten/Kota',v.kab],['Kecamatan',v.kec],['Status','Mengambil data SIPOL & DTSEN...']]);
+}
+
+/* --- pemilihan server API: sekali probe, dipakai semua panggilan --- */
+var apiProbe=null;
+function apiKandidat(){
+  var l=[];
+  if(API_URL)l.push(String(API_URL).replace(/\/+$/,''));
+  var local=(location.protocol==='file:'||location.hostname==='localhost'||location.hostname==='127.0.0.1');
+  if(local){l.push('http://127.0.0.1:8788');l.push('http://127.0.0.1:8787');}
+  if(location.hostname==='localhost'||location.hostname==='127.0.0.1')l.push('');
+  return l;
+}
+function probeApi(){
+  if(!apiProbe){
+    var l=apiKandidat(),i=0;
+    var next=function(){
+      if(i>=l.length)return Promise.resolve(false);
+      var b=l[i++],ctl=('AbortController' in window)?new AbortController():null;
+      var t=setTimeout(function(){ctl&&ctl.abort()},4000);
+      return fetch(b+'/api/health',{cache:'no-store',signal:ctl?ctl.signal:undefined})
+        .then(function(r){return r.ok?r.json():null})
+        .then(function(j){clearTimeout(t);return (j&&j.ok)?b:next()})
+        .catch(function(){clearTimeout(t);return next()});
+    };
+    apiProbe=next();
+  }
+  return apiProbe;
+}
+
+/* gambar CAPTCHA untuk DTSEN — lewat server API (situsnya tanpa CORS) */
+var sessId=null,busy=false;
+function loadCaptcha(){
+  $('capImg').classList.add('empty');
+  $('capImg').removeAttribute('src');
+  probeApi().then(function(b){
+    if(!b){sessId=null;$('capInput').value='';$('capInput').placeholder='Server API belum aktif — isi API_URL (DTSEN nonaktif)';return}
+    return fetch(b+'/api/bansos/captcha')
+      .then(function(r){return r.json()})
+      .then(function(j){if(!j.ok)throw new Error(j.error||'gagal');sessId=j.id;$('capImg').src=j.img;$('capImg').classList.remove('empty');$('capInput').value='';$('capInput').placeholder='kosongkan bila tidak perlu DTSEN'})
+      .catch(function(){sessId=null;$('capInput').value='';$('capInput').placeholder='CAPTCHA gagal dimuat — tekan Muat Ulang lagi';});
+  });
+}
+$('capBtn').onclick=loadCaptcha;
+
+$('checkForm').onsubmit=async function(e){
+  e.preventDefault();
+  if(busy)return;
+  var nik=$('checkNik').value.trim();
+  if(!/^\d{16}$/.test(nik)){alert('NIK harus tepat 16 digit.');return}
+  var v=await validasiLokal(nik);
+  if(!v.ok){renderError(v.alasan);return}
+  var captcha=$('capInput').value.trim();
+  if(captcha&&!sessId){renderError('Gambar captcha belum termuat — tekan Muat Ulang.');return}
+  renderPending(nik,v);
+  busy=true;$('checkBtn').disabled=true;
+
+  probeApi().then(function(b){
+    var pSipol=b
+      ? fetch(b+'/api/check?nik='+encodeURIComponent(nik))
+          .then(function(r){if(!r.ok)throw new Error('http '+r.status);return r.json()})
+          .then(function(j){return{serverOk:true,nama:j.nama||{found:false}}})
+          .catch(function(){return{serverOk:false,nama:{found:false}}})
+      : Promise.resolve({serverOk:false,nama:{found:false}});
+    var pDtsen=(!b&&captcha)
+      ? Promise.resolve({state:'error',pesan:'Server API belum aktif — isi API_URL di bagian atas skrip.'})
+      : (captcha
+          ? fetch(b+'/api/bansos/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:sessId,nik:nik,captcha:captcha})})
+              .then(function(r){return r.json()})
+              .catch(function(){return{state:'error',pesan:'server API tidak menjawab'}})
+          : Promise.resolve(null));
+    return Promise.all([pSipol,pDtsen]);
+  }).then(function(h){
+    busy=false;$('checkBtn').disabled=false;
+    render(nik,v,h[0],h[1]);
+    loadCaptcha();   /* satu captcha = satu cek */
+  }).catch(function(err){
+    busy=false;$('checkBtn').disabled=false;
+    renderError(err&&err.message||'Gagal memuat assets atau server API.');
+  });
+};
+$('clearBtn').onclick=function(){$('checkNik').value='';$('capInput').value='';$('resultBox').classList.remove('show');loadCaptcha()};
+loadCaptcha();
+</script>
+</body></html>
